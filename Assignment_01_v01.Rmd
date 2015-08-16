@@ -1,0 +1,201 @@
+---
+title: "Reproducible Research - Assignment 1"
+author: Navneet Latawa
+date: Sunday, 16 Aug 2015
+output: html_document
+
+---
+
+##Introduction##
+
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the "quantified self" movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+##Data##
+
+The data for this assignment can be downloaded from the course web site:
+
+Dataset: Activity monitoring data [52K]
+The variables included in this dataset are:
+
+steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+
+date: The date on which the measurement was taken in YYYY-MM-DD format
+
+interval: Identifier for the 5-minute interval in which measurement was taken
+
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
+
+##Solution##
+
+### Set working Directory###
+Set Working directory using setwd() command
+
+```{r}
+setwd("D:\\Documents\\Downloads\\RR\\Week 2")
+```
+
+###Download Data###
+Download [Activity monitoring data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip) to the working directory.
+
+
+
+### Load packages ###
+```{r}
+library(lattice)
+library("knitr")
+library("ggplot2")
+library(plyr)
+```
+
+##Loading and preprocessing the data##
+
+### Read input Data ###
+
+```{r}
+activityData<-read.csv("activity.csv")
+```
+
+####Check number of records ####
+```{r}
+rows<-nrow(activityData)
+```
+Total number of observations are `r rows`
+
+####Remove NA data####
+```{r}
+actData<-activityData[complete.cases(activityData),]
+rowsWithoutNA<- nrow(actData)
+missingValuesCount <- rows -  rowsWithoutNA
+
+```
+Total number of observations after removing NA data are `r rowsWithoutNA`
+
+####Histogram of the Total number of steps taken per day####
+```{r}
+dateWise<-split(actData$steps, actData$date)
+sumDateWise<-sapply(dateWise,sum)
+
+hist(sumDateWise, main ="Total number of Steps per day", xlab = "Total number of Steps per day", ylab ="Steps", col = "blue")
+
+```
+
+
+####What is mean total number of steps taken per day?####
+```{r}
+
+meanData<-mean(sumDateWise)
+
+medianData<-median(sumDateWise)
+
+```
+Mean number of steps taken per day are `r meanData`
+
+Median number of steps taken per day are `r medianData`
+
+
+
+####What is the average daily activity pattern?####
+```{r}
+
+meanSteps <- aggregate(actData$steps, by = list(actData$interval), mean)
+medSteps <- aggregate(actData$steps, by = list(actData$interval), median)
+
+meanSteps <- cbind(meanSteps[], medSteps$x)
+
+#Tidy the df names and round the numbers
+names(meanSteps) = c("interval","mean.steps", "median.steps")
+meanSteps$mean.steps <- round(meanSteps$mean.steps)
+meanSteps$median.steps <- round(meanSteps$median.steps)
+maxsteps <- meanSteps$interval[meanSteps$mean.steps == max(meanSteps$mean.steps)]
+
+
+ggplot(meanSteps, aes(x = interval, y = mean.steps)) + geom_line()
+
+
+
+```
+We can see a pattern from the above plot that total number of steps remain flat until around 500 and jumps to maximum 
+at `r maxsteps` and then falls sharply and moves up and down until it gradually falls to zero after 20,000.
+
+
+####Inputing missing values####
+Missing values in the dataset are `r missingValuesCount`
+```{r}
+medStepsIntvl <- as.data.frame(tapply(actData$steps, 
+                                      INDEX = actData$interval, 
+                                      FUN = "median", na.rm = TRUE))
+
+colnames(medStepsIntvl) <- "medianSteps"
+#Name rownames to interval as INDEX has created unterval as rownames
+medStepsIntvl$interval <- rownames(medStepsIntvl)
+row.names(medStepsIntvl)<-NULL
+mean_median<-merge(medStepsIntvl,meanSteps, by="interval")
+#merge mean and median with original data with missing
+activityDataMerged<-merge(activityData,mean_median, by="interval")
+
+for (i in (1:nrow(activityDataMerged))) {
+  if (is.na(activityDataMerged$steps[i])) {
+    activityDataMerged$steps[i] <- activityDataMerged$medianSteps[i]
+  } 
+}
+
+
+dateWiseNew<-split(activityDataMerged$steps, activityDataMerged$date)
+sumDateWiseNew<-sapply(dateWiseNew,sum)
+
+hist(sumDateWiseNew, main ="Total number of Steps per day", xlab = "Total number of Steps per day", ylab ="Steps", col = "blue")
+
+meanDataNew<-mean(sumDateWiseNew)
+
+medianDataNew<-median(sumDateWiseNew)
+
+```
+Mean number of steps taken per day are `r meanDataNew`
+
+Median number of steps taken per day are `r medianDataNew`
+
+Mean has changed from `r meanData` to `r meanDataNew` but median value(`r medianData`) has remained same even after filling NA values with median.
+
+
+####Are there differences in activity patterns between weekdays and weekends? ####
+
+```{r}
+
+activityDataMerged$weekdays <- grepl("^[Ss]", weekdays(as.Date(activityDataMerged$date)))
+
+for (i in (1:nrow(activityDataMerged))) {
+    if (activityDataMerged$weekdays[i] == TRUE) {
+        activityDataMerged$week_day_factor[i] <- "weekend"
+    } else {
+        activityDataMerged$week_day_factor[i] <- "weekday"
+    }
+}
+
+mean_stps_per_intvl_input <- aggregate(activityDataMerged$steps, by = list(activityDataMerged$interval, 
+    activityDataMerged$week_day_factor), FUN = "mean", na.rm = TRUE)
+colnames(mean_stps_per_intvl_input) <- c("interval", "weekday", "avg_steps")
+
+sort_order <- order(as.numeric(mean_stps_per_intvl_input$interval))
+mean_stps_per_intvl <- mean_stps_per_intvl_input[sort_order, ]
+
+mean_by_day_type <- aggregate( activityDataMerged$steps, by = list( activityDataMerged$week_day_factor), 
+    FUN = "mean", na.rm = TRUE)
+mean_weekdays <- round(mean_by_day_type[1, 2], 2)
+mean_weekends <- round(mean_by_day_type[2, 2], 2)
+
+xyplot(data = mean_stps_per_intvl, 
+       avg_steps ~ as.numeric(interval) | as.factor(weekday), 
+           type = "l", layout = c(1, 2), col = c("blue","red"), 
+    main = "Average Number of Steps by Time Interval", 
+    xlab = "Time Interval (5-mins)", ylab = "Average number of steps")
+
+
+xyplot(data = mean_stps_per_intvl, 
+       avg_steps ~ as.numeric(interval) | as.factor(weekday), 
+           type = "l", layout = c(2, 1), col = c("blue","red"), 
+    main = "Average Number of Steps by Time Interval", 
+    xlab = "Time Interval (5-mins)", ylab = "Average number of steps")
+    
+```
