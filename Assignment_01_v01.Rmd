@@ -33,7 +33,7 @@ The dataset is stored in a comma-separated-value (CSV) file and there are a tota
 Set Working directory using setwd() command
 
 ```{r}
-setwd("D:\\Documents\\Downloads\\RR\\Week 2")
+setwd("D:\\Documents\\Downloads\\RR\\Week 2\\Assignment")
 ```
 
 ###Download Data###
